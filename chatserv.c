@@ -1,4 +1,4 @@
-//mid term projeact:real time VoIP phone--server side
+//real time VoIP phone--server side
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,7 +12,12 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <sys/timerfd.h>
+#include <time.h>
 
+#include <stdlib.h>
+
+#include <stdint.h> 
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -29,7 +34,9 @@
 #include <pulse/error.h>
 #include <pulse/gccmacro.h>
 
-#define BUFSIZE 102400
+#define handle_error(msg) \
+        do { perror(msg); exit(EXIT_FAILURE); } while (0)
+#define BUFSIZE 1024
 
 volatile sig_atomic_t keep_going = 1;
 
@@ -62,7 +69,7 @@ void my_handler_for_sigint(int signumber)//handler for CTRL+C SIGINT
        printf("Exiting ....Press any key\n");
         keep_going = 0;//atomic variable that controls the server loop is set here;cleanup in main
 	//kill(getppid(),SIGKILL);
-	//exit(0); 
+	exit(0); 
     }
     else
     {
@@ -173,7 +180,25 @@ int main(int argc,char* argv[])
 
 uint8_t buf[BUFSIZE];
         ssize_t r;
+struct itimerspec new_value;
+    int max_exp, fd2;
+    struct timespec now;
+    uint64_t exp, tot_exp;
+    ssize_t s3;
 
+   if (clock_gettime(CLOCK_REALTIME, &now) == -1)
+        handle_error("clock_gettime");
+
+   /* Create a CLOCK_REALTIME absolute timer with initial
+       expiration and interval as specified in command line */
+
+   new_value.it_value.tv_sec = now.tv_sec ;
+    new_value.it_value.tv_nsec = now.tv_nsec;
+
+  
+        new_value.it_interval.tv_sec=0;
+        max_exp = 100000000;
+      	new_value.it_interval.tv_nsec = 100000;
  // main accept() loop
 	//printf("loop");
 while(1)
@@ -189,12 +214,23 @@ while(1)
         inet_ntop(their_addr.ss_family,
             get_in_addr((struct sockaddr *)&their_addr),s, sizeof s);
         printf("server: got connection from %s\n", s);
+	
+	fd2 = timerfd_create(CLOCK_REALTIME, 0);
+   
+    if (fd2 == -1)
+        handle_error("timerfd_create");
 
-{
-    while(keep_going)//as long as SIGINT is not received
- 	{ 
-	  // this is the child process
-            close(sockfd); // child doesn't need the listener
+   if (timerfd_settime(fd2, TFD_TIMER_ABSTIME, &new_value, NULL) == -1)
+        handle_error("timerfd_settime");
+
+    for (tot_exp = 0; tot_exp < max_exp;) {
+        s3 = read(fd2, &exp, sizeof(uint64_t));
+        if (s3 != sizeof(uint64_t))
+            handle_error("read");
+
+        tot_exp += exp;
+
+        close(sockfd); // child doesn't need the listener
             
    	 if ((numbytes = recv(new_fd, buf, BUFSIZE, 0)) == -1) {
         perror("recv");
@@ -209,16 +245,16 @@ while(1)
             fprintf(stderr, __FILE__": pa_simple_write() failed: %s\n", pa_strerror(error));
             goto finish;
         }
-    usleep(200);
+    //usleep(200);
 
 
 	}
 
 }    
-}
+
 
 close(new_fd);  // parent doesn't need this
-	
+exit(0);
 if(keep_going==0)//cleanup in parent process
 {close(sockfd);
 printf("cleanup before exiting parent");

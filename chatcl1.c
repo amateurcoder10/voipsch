@@ -1,4 +1,4 @@
-//mid term projeact:real time VoIP phone---client side
+//real time VoIP phone---client side
 //using pulseaudio APIs
 
 #include <stdio.h>
@@ -24,12 +24,20 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/timerfd.h>
+#include <time.h>
 
+#include <stdlib.h>
+
+#include <stdint.h> 
 #include <pulse/simple.h>
 #include <pulse/error.h>
 #include <pulse/gccmacro.h>
 
 #define BUFSIZE 1024
+
+#define handle_error(msg) \
+        do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
 volatile sig_atomic_t keep_going = 1;
 
@@ -87,7 +95,25 @@ int main(int argc, char *argv[])
 
     int fd;
 
+    struct itimerspec new_value;
+    int max_exp, fd2;
+    struct timespec now;
+    uint64_t exp, tot_exp;
+    ssize_t s3;
+
+   if (clock_gettime(CLOCK_REALTIME, &now) == -1)
+        handle_error("clock_gettime");
+
+   /* Create a CLOCK_REALTIME absolute timer with initial
+       expiration and interval as specified in command line */
+
+   new_value.it_value.tv_sec = now.tv_sec ;
+    new_value.it_value.tv_nsec = now.tv_nsec;
+
   
+        new_value.it_interval.tv_sec=0;
+        max_exp = 100000000;
+      	new_value.it_interval.tv_nsec = 100000;
     /* Create the recording stream */
     if (!(s1 = pa_simple_new(NULL, argv[0], PA_STREAM_RECORD, NULL, "record", &ss, NULL, NULL, &error))) {
         fprintf(stderr, __FILE__": pa_simple_new() failed: %s\n", pa_strerror(error));
@@ -114,7 +140,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-
+    
     // loop through all the results and connect to the first we can
     for(p = servinfo; p != NULL; p = p->ai_next) {
         if ((sockfd = socket(p->ai_family, p->ai_socktype,
@@ -142,10 +168,21 @@ int main(int argc, char *argv[])
     printf("client: connecting to %s\n", s);
 
     freeaddrinfo(servinfo); // all done with this structure
+    fd2 = timerfd_create(CLOCK_REALTIME, 0);
+   
+    if (fd2 == -1)
+        handle_error("timerfd_create");
 
-	while(keep_going)//loop which keeps sending voice 
+   if (timerfd_settime(fd2, TFD_TIMER_ABSTIME, &new_value, NULL) == -1)
+        handle_error("timerfd_settime");
 
-		{
+    for (tot_exp = 0; tot_exp < max_exp;) {
+        s3 = read(fd2, &exp, sizeof(uint64_t));
+        if (s3 != sizeof(uint64_t))
+            handle_error("read");
+
+        tot_exp += exp;
+        
         	/* Record some data ... */
         	if (pa_simple_read(s1, buf, sizeof(buf), &error) < 0) {
             	fprintf(stderr, __FILE__": pa_simple_read() failed: %s\n", pa_strerror(error));
@@ -158,7 +195,7 @@ int main(int argc, char *argv[])
 		    close(sockfd);
 		    exit(0);
 			}
-		usleep(200);
+		//usleep(200);
 
 	
 	}
