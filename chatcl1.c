@@ -38,7 +38,7 @@
 
 #define handle_error(msg) \
         do { perror(msg); exit(EXIT_FAILURE); } while (0)
-
+long unsigned no=0;
 volatile sig_atomic_t keep_going = 1;
 
 // get sockaddr, IPv4 or IPv6:
@@ -63,6 +63,8 @@ void my_handler_for_sigint(int signumber)//handler to handle SIGINT ctrl+C
     if (strcmp(ans,"Y") == 0)//terminate if Y
     {
        printf("Exiting ....Press any key\n");
+	printf("Statistics:\nno of bytes sent in 10-5 s is %lu\n",no);
+	printf("the data rate is therefore %lu Megabytes per second",no*10);
         keep_going = 0;//set a variable and perform cleanup in main
 	
 	exit(0); 
@@ -177,6 +179,7 @@ int main(int argc, char *argv[])
         handle_error("timerfd_settime");
 
     for (tot_exp = 0; tot_exp < max_exp;) {
+	if(tot_exp==0)no+=BUFSIZE;
         s3 = read(fd2, &exp, sizeof(uint64_t));
         if (s3 != sizeof(uint64_t))
             handle_error("read");

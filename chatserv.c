@@ -198,7 +198,7 @@ struct itimerspec new_value;
   
         new_value.it_interval.tv_sec=0;
         max_exp = 100000000;
-      	new_value.it_interval.tv_nsec = 100000;
+      	new_value.it_interval.tv_nsec = 10000;
  // main accept() loop
 	//printf("loop");
 while(1)
