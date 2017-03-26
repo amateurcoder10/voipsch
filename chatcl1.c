@@ -112,8 +112,8 @@ int main(int argc, char *argv[])
 
   
         new_value.it_interval.tv_sec=0;
-        max_exp = 100000000;
-      	new_value.it_interval.tv_nsec = 100000;
+        max_exp = 100000000;//no of times to be repeated
+      	new_value.it_interval.tv_nsec = 10000;//interval in nsec
     /* Create the recording stream */
     if (!(s1 = pa_simple_new(NULL, argv[0], PA_STREAM_RECORD, NULL, "record", &ss, NULL, NULL, &error))) {
         fprintf(stderr, __FILE__": pa_simple_new() failed: %s\n", pa_strerror(error));
